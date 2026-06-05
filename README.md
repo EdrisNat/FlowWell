@@ -131,6 +131,4 @@ When changing cached assets, update `CACHE_NAME` in `sw.js` so existing installa
 - The app depends on browser support for modern web APIs, especially for encryption and service-worker features.
 - Google Fonts are imported from the web, so typography may fall back to system fonts when fully offline before fonts have been cached by the browser.
 
-## License
 
-No license file is currently included. Add a license before public distribution if this project will be shared or reused.
