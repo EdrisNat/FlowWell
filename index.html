@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1A4D2E">
+  <meta name="description" content="FlowWell is a private menstrual health and dignity tracker for university students in Uganda.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <title>FlowWell</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="skeleton" id="skeleton" aria-hidden="true">
+    <div class="skeleton-card glass">
+      <div class="pulse" style="width: 44%; height: 2rem;"></div>
+      <div class="pulse" style="width: 94%;"></div>
+      <div class="pulse" style="width: 86%;"></div>
+      <div class="pulse" style="width: 65%;"></div>
+    </div>
+  </div>
+
+  <div class="toast-stack" id="toasts" aria-live="polite" aria-atomic="true"></div>
+
+  <section class="lock-screen" id="lockScreen" aria-labelledby="lockTitle">
+    <div class="lock-card glass">
+      <h2 id="lockTitle">FlowWell is locked</h2>
+      <p>Your saved records are encrypted on this device. Enter your PIN to unlock them for this session.</p>
+      <form class="form" id="unlockForm">
+        <label>Private PIN
+          <input id="unlockPin" type="password" inputmode="numeric" autocomplete="current-password" minlength="4" placeholder="Enter PIN">
+        </label>
+        <button class="primary" type="submit">Unlock FlowWell</button>
+        <button class="danger" type="button" id="resetLockedData">Forgot PIN: erase local records</button>
+      </form>
+    </div>
+  </section>
+
+  <dialog id="confirmModal" aria-labelledby="modalTitle">
+    <div class="modal-content">
+      <h2 id="modalTitle">Confirm action</h2>
+      <p id="modalText">This action needs your confirmation.</p>
+      <div class="button-row">
+        <button class="danger" id="confirmYes" type="button">Confirm</button>
+        <button class="secondary" id="confirmNo" type="button">Cancel</button>
+      </div>
+    </div>
+  </dialog>
+
+  <main class="app" id="app">
+    <header class="topbar glass">
+      <div class="brand" aria-label="FlowWell">
+        <div class="brand-mark" aria-hidden="true">FW</div>
+        <div>
+          <h1>FlowWell</h1>
+          <p>Private monthly cycle support for campus life</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button class="icon-button theme-button" type="button" id="themeToggle" aria-label="Toggle dark theme" title="Theme">
+          <svg class="theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v3M12 19v3M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M2 12h3M19 12h3M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12"></path></svg>
+          <svg class="theme-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.7A8 8 0 0 1 9.3 4a7 7 0 1 0 10.7 10.7Z"></path></svg>
+        </button>
+        <button class="icon-button" type="button" id="contrastToggle" aria-label="Toggle high contrast mode" title="Contrast">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><path d="M12 4v16"></path><path d="M12 4a8 8 0 0 1 0 16Z"></path></svg>
+        </button>
+      </div>
+    </header>
+
+    <nav class="tabs glass" aria-label="FlowWell sections">
+      <button class="tab" type="button" data-tab="cycle" aria-selected="true"><span class="tab-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v3M17 3v3M4 9h16"></path><rect x="4" y="5" width="16" height="16" rx="3"></rect><circle cx="12" cy="15" r="2"></circle></svg></span><span>Cycle</span></button>
+      <button class="tab" type="button" data-tab="symptoms" aria-selected="false"><span class="tab-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8"></path><path d="M8 14a4 4 0 1 0 8 0c0-2-4-7-4-7s-4 5-4 7Z"></path></svg></span><span>Symptoms</span></button>
+      <button class="tab" type="button" data-tab="locator" aria-selected="false"><span class="tab-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12Z"></path><circle cx="12" cy="9" r="2.3"></circle></svg></span><span>Products</span></button>
+      <button class="tab" type="button" data-tab="learn" aria-selected="false"><span class="tab-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H7a3 3 0 0 0-3 3Z"></path><path d="M8 7h8M8 11h7M8 15h5"></path></svg></span><span>Learn</span></button>
+      <button class="tab" type="button" data-tab="letters" aria-selected="false"><span class="tab-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h10l4 4v12H5Z"></path><path d="M15 4v4h4M8 13h8M8 17h6"></path></svg></span><span>Letter</span></button>
+      <button class="tab" type="button" data-tab="resources" aria-selected="false"><span class="tab-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v10M7 12h10"></path></svg></span><span>Help</span></button>
+      <button class="tab" type="button" data-tab="settings" aria-selected="false"><span class="tab-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"></path></svg></span><span>Settings</span></button>
+      <button class="tab" type="button" data-tab="logs" aria-selected="false"><span class="tab-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12M6 12h12M6 17h12"></path></svg></span><span>Logs</span></button>
+    </nav>
+
+    <section class="hero">
+      <div class="dashboard glass">
+        <div>
+          <h2>Your private cycle <em>companion.</em></h2>
+          <p>Designed for university life in Uganda, with all records kept only on this phone or computer.</p>
+        </div>
+        <div class="status-grid" id="dashboardStats"></div>
+      </div>
+      <aside class="privacy-strip glass">
+        <strong aria-hidden="true">Lock</strong>
+        <div>
+          <strong>Offline and private by design</strong>
+          <p>FlowWell stores data on this device only. Turn on the PIN lock to encrypt saved records.</p>
+        </div>
+      </aside>
+      <aside class="safety-strip glass">
+        <strong aria-hidden="true">!</strong>
+        <div>
+          <strong>Medical safety note</strong>
+          <p>FlowWell supports tracking and planning, but it is not medical advice. Predictions are estimates and should not be used as contraception. Seek urgent care for severe pain, fainting, fever, unusual discharge, or bleeding that soaks pads very quickly.</p>
+        </div>
+      </aside>
+    </section>
+
+    <section class="view active" id="view-cycle">
+      <div class="section-title">
+        <div>
+          <h2>Cycle Tracker</h2>
+          <p>Tap a date to log or review your day.</p>
+        </div>
+        <button class="secondary" type="button" id="todayBtn">Today</button>
+      </div>
+      <div class="grid two">
+        <article class="card calendar-card">
+          <div class="month-controls">
+            <button class="icon-button" type="button" id="prevMonth" aria-label="Previous month">&lt;</button>
+            <h3 id="monthLabel"></h3>
+            <button class="icon-button" type="button" id="nextMonth" aria-label="Next month">&gt;</button>
+          </div>
+          <div class="calendar-grid" id="calendar" aria-label="Monthly calendar"></div>
+          <div class="legend">
+            <span><i class="dot"></i>Logged period</span>
+            <span><i class="dot sage"></i>Fertile window</span>
+            <span><i class="dot plum"></i>Symptoms</span>
+            <span><i class="dot gold"></i>Note</span>
+          </div>
+        </article>
+        <article class="card selected-day" id="selectedDayPanel"></article>
+      </div>
+    </section>
+
+    <section class="view" id="view-symptoms">
+      <div class="section-title">
+        <div>
+          <h2>Symptom &amp; Pain Logger</h2>
+          <p>Record what you feel, in your own words.</p>
+        </div>
+      </div>
+      <div class="grid two">
+        <article class="card">
+          <form class="form" id="symptomForm">
+            <label>Log date <input type="date" id="symptomDate"></label>
+            <div class="symptom-list" id="symptomList"></div>
+            <div class="button-row">
+              <input type="text" id="customSymptom" placeholder="Add custom symptom" aria-label="Custom symptom name">
+              <button class="secondary" type="button" id="addSymptomBtn">Add</button>
+            </div>
+            <label>Private notes <textarea id="dayNotes" placeholder="Anything you want to remember about this day"></textarea></label>
+            <button class="primary" type="submit">Save symptoms</button>
+          </form>
+        </article>
+        <article class="card">
+          <div class="section-title" style="margin-top:0">
+            <div>
+              <h3>History</h3>
+              <p>Recent pain levels by symptom.</p>
+            </div>
+          </div>
+          <div class="chart" id="symptomChart"></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="view" id="view-locator">
+      <div class="section-title">
+        <div>
+          <h2>Product Locator</h2>
+          <p>Find pads and hygiene products on campus.</p>
+        </div>
+        <button class="secondary" type="button" id="sortLocations">Sort by distance</button>
+      </div>
+      <div class="grid two">
+        <article class="card">
+          <form class="form" id="locationForm">
+            <label>Building name <input id="locBuilding" required placeholder="e.g., Freedom Hall"></label>
+            <label>Floor <input id="locFloor" required placeholder="e.g., Ground floor"></label>
+            <label>Room or area <input id="locRoom" required placeholder="e.g., Women's Washroom"></label>
+            <label>Product type
+              <select id="locProduct">
+                <option>Pads</option>
+                <option>Tampons</option>
+                <option>Free</option>
+                <option>Vending Machine</option>
+              </select>
+            </label>
+            <label>Custom distance/order <input id="locDistance" type="number" min="1" value="5"></label>
+            <button class="primary" type="submit">Report a new location</button>
+          </form>
+        </article>
+        <article class="grid" id="locationList"></article>
+      </div>
+    </section>
+
+    <section class="view" id="view-learn">
+      <div class="section-title">
+        <div>
+          <h2>Myth-Buster</h2>
+          <p>Respectful answers to common campus beliefs.</p>
+        </div>
+      </div>
+      <div class="grid" id="mythList"></div>
+    </section>
+
+    <section class="view" id="view-letters">
+      <div class="section-title">
+        <div>
+          <h2>Discreet Letter Generator</h2>
+          <p>Creates a respectful note without naming your period.</p>
+        </div>
+      </div>
+      <div class="grid two">
+        <article class="card">
+          <form class="form" id="letterForm">
+            <label>Student name <input id="studentName" required placeholder="Your full name"></label>
+            <label>Course code <input id="courseCode" required placeholder="e.g., CSC 2104"></label>
+            <label>Lecturer name <input id="lecturerName" required placeholder="Lecturer's name"></label>
+            <label>Date of absence <input type="date" id="absenceDate" required></label>
+            <label>Reason
+              <select id="absenceReason">
+                <option>Medical grounds</option>
+                <option>Personal health</option>
+                <option>Family emergency</option>
+              </select>
+            </label>
+            <div class="button-row">
+              <button class="primary" type="submit">Generate letter</button>
+              <button class="secondary" type="button" id="copyLetter">Copy</button>
+              <button class="secondary" type="button" id="downloadLetter">Download</button>
+              <button class="secondary" type="button" id="saveLetter">Save history</button>
+            </div>
+          </form>
+        </article>
+        <article class="card">
+          <div class="letter-preview" id="letterPreview" aria-label="Generated letter preview">Your letter will appear here.</div>
+        </article>
+      </div>
+    </section>
+
+    <section class="view" id="view-resources">
+      <div class="section-title">
+        <div>
+          <h2>Emergency &amp; Health Resources</h2>
+          <p>Quick help, practical steps, and trusted support.</p>
+        </div>
+      </div>
+      <div class="grid two">
+        <article class="card grid" id="callList"></article>
+        <article class="card">
+          <h3>Crisis protocol</h3>
+          <ol class="protocol">
+            <li>Move to a safe, private place if you can, and sit or lie down.</li>
+            <li>Call campus health support or a trusted friend to stay with you.</li>
+            <li>If pain is severe, bleeding is unusually heavy, or you feel faint, seek urgent medical care.</li>
+            <li>Keep a short note of symptoms and medicines taken to help the nurse understand quickly.</li>
+          </ol>
+        </article>
+      </div>
+      <div class="section-title">
+        <div>
+          <h3>Nearby trusted resources</h3>
+        </div>
+      </div>
+      <div class="grid three" id="resourceList"></div>
+    </section>
+
+    <section class="view" id="view-settings">
+      <div class="section-title">
+        <div>
+          <h2>Privacy &amp; Settings</h2>
+          <p>You control the data and the words you see.</p>
+        </div>
+      </div>
+      <div class="settings-grid">
+        <article class="card form">
+          <label>Average cycle length: <strong id="cycleLengthValue">28 days</strong>
+            <input type="range" min="21" max="35" id="cycleLength">
+          </label>
+          <label>Usual period duration: <strong id="periodDurationValue">5 days</strong>
+            <input type="range" min="3" max="7" id="periodDuration">
+          </label>
+          <div class="switch-row">
+            <div><strong>Show fertile window</strong><br><span>Off by default for comfort and cultural sensitivity.</span></div>
+            <button class="toggle" type="button" id="fertileToggle" aria-label="Toggle fertile window"></button>
+          </div>
+        </article>
+        <article class="card">
+          <div class="switch-row">
+            <div><strong>Local PIN lock</strong><br><span id="privacyStatus">Records are stored on this device. Add a PIN to encrypt them.</span></div>
+            <button class="secondary" type="button" id="lockNow">Lock now</button>
+          </div>
+          <form class="form" id="pinForm" style="margin-top:1rem">
+            <label>New privacy PIN
+              <input id="privacyPin" type="password" inputmode="numeric" autocomplete="new-password" minlength="4" placeholder="At least 4 characters">
+            </label>
+            <div class="button-row">
+              <button class="primary" type="submit">Set encrypted PIN</button>
+              <button class="danger" type="button" id="removePin">Remove PIN lock</button>
+            </div>
+          </form>
+        </article>
+        <article class="card">
+          <div class="switch-row">
+            <div><strong>Export backup</strong><br><span>Download your local FlowWell data as JSON.</span></div>
+            <button class="secondary" type="button" id="exportData">Export</button>
+          </div>
+          <div class="switch-row">
+            <div><strong>Import backup</strong><br><span>Restore a JSON backup from this device.</span></div>
+            <label style="display:block">
+              <span class="sr-only">Import JSON</span>
+              <input type="file" id="importData" accept="application/json,.json">
+            </label>
+          </div>
+          <div class="switch-row">
+            <div><strong>Clear all local data</strong><br><span>This wipes FlowWell records from this browser only.</span></div>
+            <button class="danger" type="button" id="clearData">Clear</button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="view" id="view-logs">
+      <div class="section-title">
+        <div>
+          <h2>Saved Logs</h2>
+          <p>Edit or delete past entries.</p>
+        </div>
+      </div>
+      <div class="grid two">
+        <article class="card">
+          <h3>Period logs</h3>
+          <div class="grid" id="periodLogList"></div>
+        </article>
+        <article class="card">
+          <h3>Letter history</h3>
+          <div class="grid" id="letterHistory"></div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js" defer></script>
+</body>
+</html>

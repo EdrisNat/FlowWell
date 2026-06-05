@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="FlowWell icon">
+  <rect width="512" height="512" rx="112" fill="#4A235A"/>
+  <path d="M142 296c0-93 75-178 114-221 39 43 114 128 114 221 0 74-48 130-114 130s-114-56-114-130Z" fill="#E8D1F5"/>
+  <path d="M199 310c27 25 72 25 114 0" fill="none" stroke="#C5E0D4" stroke-width="34" stroke-linecap="round"/>
+</svg>
