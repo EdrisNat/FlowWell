@@ -75,6 +75,8 @@
       };
       let pendingSave = 0;
       let selectedDate = today();
+      let multiSelectMode = false;
+      let multiSelected = new Set();
       let calendarCursor = startOfMonth(new Date());
       let currentLetter = "";
       let locationAscending = true;
@@ -93,8 +95,12 @@
           return clone(defaultState);
         }
         try {
-          const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
-          return mergeState(defaultState, stored || {});
+          const raw = localStorage.getItem(STORAGE_KEY);
+          // First-ever open: raw is null → return a clean state with NO period days,
+          // locations only, and no pre-marked calendar dates.
+          if (!raw) return clone(defaultState);
+          const stored = JSON.parse(raw);
+          return mergeState(defaultState, stored);
         } catch {
           return clone(defaultState);
         }
@@ -149,7 +155,7 @@
             { label: "Days since last period", value: lastStart ? daysBetween(lastStart, today()) : "Not set" },
             { label: "Days until next period", value: prediction.nextStart ? Math.max(0, daysBetween(today(), prediction.nextStart)) : "Log first" },
             { label: "Next expected start", value: prediction.nextStart ? formatShort(prediction.nextStart) : "Unknown" },
-            { label: "Fertile window", value: state.settings.showFertile && prediction.fertileStart ? `${formatShort(prediction.fertileStart)}-${formatShort(prediction.fertileEnd)}` : "Hidden" }
+            { label: state.settings.showFertile ? "Fertile window" : "Ovulation window", value: prediction.fertileStart ? `${formatShort(prediction.fertileStart)} – ${formatShort(prediction.fertileEnd)}` : "Log a period first" }
           ];
           $("#dashboardStats").innerHTML = stats.map((stat) => `
             <div class="stat">
@@ -164,6 +170,13 @@
           const gridStart = addDays(monthStart, -monthStart.getDay());
           const prediction = getPrediction();
           $("#monthLabel").textContent = monthStart.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+          // Update multi-select toolbar visibility
+          const toolbar = $("#multiSelectToolbar");
+          if (toolbar) {
+            toolbar.style.display = multiSelectMode ? "flex" : "none";
+            const countEl = toolbar.querySelector("#multiSelectCount");
+            if (countEl) countEl.textContent = `${multiSelected.size} day${multiSelected.size === 1 ? "" : "s"} selected`;
+          }
           const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => `<div class="weekday">${d}</div>`).join("");
           const days = Array.from({ length: 42 }, (_, index) => {
             const date = addDays(gridStart, index);
@@ -173,26 +186,72 @@
             if (iso === today()) classes.push("today");
             if (state.periodDays.includes(iso)) classes.push("period");
             if (prediction.periodDays.includes(iso) && !state.periodDays.includes(iso)) classes.push("predicted");
-            if (state.settings.showFertile && prediction.fertileDays.includes(iso)) classes.push("fertile");
             if (hasSymptoms(iso)) classes.push("symptom");
             if (state.symptoms[iso]?.notes) classes.push("note");
-            return `<button class="${classes.join(" ")}" type="button" data-date="${iso}" aria-label="${formatLong(iso)}">${date.getDate()}</button>`;
+            if (multiSelectMode && multiSelected.has(iso)) classes.push("multi-selected");
+
+            // Ovulation gradient — ALWAYS shown when there is period data.
+            // showFertile only controls whether the date text appears in the dashboard stat.
+            // The colours are health information and should always be visible.
+            let ovStyle = "";
+            const hasData = prediction.ovulationDay !== null;
+
+            if (hasData && prediction.ovulationMap[iso] !== undefined) {
+              const prob = prediction.ovulationMap[iso];
+              // Pink → red scale based on Dunson 2002 fecundability weights
+              let r, g, b;
+              if (prob <= 0.2)      { r=255; g=182; b=193; }
+              else if (prob <= 0.4) { r=252; g=140; b=160; }
+              else if (prob <= 0.6) { r=240; g=90;  b=120; }
+              else if (prob <= 0.8) { r=220; g=50;  b=80;  }
+              else                  { r=200; g=30;  b=60;  }
+              const alpha = 0.25 + prob * 0.60; // 0.25 → 0.85, visible even at low prob
+              ovStyle = ` style="background:rgba(${r},${g},${b},${alpha.toFixed(2)}) !important;border-color:rgba(${r},${g},${b},0.65) !important;"`;
+            }
+
+            const isOvDay = hasData && iso === prediction.ovulationDay;
+            const ariaLabel = isOvDay
+              ? `${formatLong(iso)} — predicted ovulation day`
+              : prediction.ovulationMap[iso]
+                ? `${formatLong(iso)} — fertile (${Math.round(prediction.ovulationMap[iso]*100)}% probability)`
+                : formatLong(iso);
+
+            return `<button class="${classes.join(" ")}" type="button" data-date="${iso}" aria-label="${ariaLabel}"${ovStyle}>${date.getDate()}${isOvDay ? '<span class="ov-dot" aria-hidden="true"></span>' : ""}</button>`;
           }).join("");
           calendar.innerHTML = weekdays + days;
         },
         selectedDay() {
           const entry = state.symptoms[selectedDate] || {};
           const isPeriod = state.periodDays.includes(selectedDate);
+          // Default end date = selectedDate + (periodDuration - 1), capped to not exceed today
+          const defaultEnd = toISO(addDays(parseISO(selectedDate), state.settings.periodDuration - 1));
           $("#selectedDayPanel").innerHTML = `
             <div>
               <h3>${formatLong(selectedDate)}</h3>
               <p>${isPeriod ? "Period logged for this day." : "No period logged for this day yet."}</p>
             </div>
-            <div class="button-row">
-              <button class="primary" type="button" data-action="logPeriod">Log usual period from this date</button>
-              <button class="secondary" type="button" data-action="togglePeriod">${isPeriod ? "Remove this period day" : "Mark this as a period day"}</button>
-              <button class="ghost" type="button" data-action="useForSymptoms">Use for symptoms</button>
+
+            <div class="period-log-form">
+              <strong class="period-log-title">Log period range</strong>
+              <p class="period-log-hint">Choose exactly which days to mark — you are not limited to the default duration.</p>
+              <div class="period-range-row">
+                <label class="period-range-label">
+                  Start
+                  <input type="date" id="periodStartInput" value="${selectedDate}" aria-label="Period start date">
+                </label>
+                <span class="period-range-sep">→</span>
+                <label class="period-range-label">
+                  End
+                  <input type="date" id="periodEndInput" value="${defaultEnd}" aria-label="Period end date">
+                </label>
+              </div>
+              <div class="button-row">
+                <button class="primary" type="button" data-action="logPeriodRange">Save period days</button>
+                <button class="secondary" type="button" data-action="togglePeriod">${isPeriod ? "Remove this day only" : "Mark this day only"}</button>
+                <button class="ghost" type="button" data-action="useForSymptoms">Log symptoms</button>
+              </div>
             </div>
+
             <div>
               <strong>Symptoms saved</strong>
               ${hasSymptoms(selectedDate) ? `<p>${Object.entries(entry.values || {}).filter(([, v]) => Number(v) > 0).map(([k, v]) => `${k}: ${v}/5`).join(", ")}</p>` : `<div class="empty"><b>--</b><span>No symptoms saved for this day.</span></div>`}
@@ -358,6 +417,10 @@
           $("#importData").addEventListener("change", importData);
           $("#clearData").addEventListener("click", () => confirmAction("Clear all FlowWell data from this browser?", clearData));
           $("#periodLogList").addEventListener("click", onPeriodLogAction);
+          const multiSelectBtn = $("#multiSelectBtn");
+          if (multiSelectBtn) multiSelectBtn.addEventListener("click", toggleMultiSelect);
+          const removeSelectedBtn = $("#removeSelectedBtn");
+          if (removeSelectedBtn) removeSelectedBtn.addEventListener("click", removeMultiSelected);
           $("#letterHistory").addEventListener("click", onLetterHistoryAction);
           $("#confirmNo").addEventListener("click", () => $("#confirmModal").close());
         }
@@ -371,17 +434,33 @@
       function onCalendarClick(event) {
         const button = event.target.closest("[data-date]");
         if (!button) return;
-        selectedDate = button.dataset.date;
+        const iso = button.dataset.date;
+        if (multiSelectMode) {
+          if (multiSelected.has(iso)) {
+            multiSelected.delete(iso);
+          } else {
+            multiSelected.add(iso);
+          }
+          Renderer.calendar();
+          return;
+        }
+        selectedDate = iso;
         Renderer.all();
       }
 
       function onSelectedDayAction(event) {
         const action = event.target.closest("[data-action]")?.dataset.action;
         if (!action) return;
-        if (action === "logPeriod") {
-          const days = Array.from({ length: state.settings.periodDuration }, (_, index) => toISO(addDays(parseISO(selectedDate), index)));
+
+        if (action === "logPeriodRange") {
+          const startVal = $("#periodStartInput")?.value || selectedDate;
+          const endVal   = $("#periodEndInput")?.value   || selectedDate;
+          if (endVal < startVal) return toast("End date must be on or after the start date");
+          const span = daysBetween(startVal, endVal);
+          if (span > 14) return toast("Range too long — please enter up to 14 days");
+          const days = Array.from({ length: span + 1 }, (_, i) => toISO(addDays(parseISO(startVal), i)));
           state.periodDays = uniqueSorted([...state.periodDays, ...days]);
-          persist("Period logged");
+          persist(`${days.length} period day${days.length === 1 ? "" : "s"} logged`);
         }
         if (action === "togglePeriod") {
           state.periodDays = state.periodDays.includes(selectedDate)
@@ -649,6 +728,26 @@
         }
       }
 
+      function toggleMultiSelect() {
+        multiSelectMode = !multiSelectMode;
+        if (!multiSelectMode) multiSelected.clear();
+        Renderer.calendar();
+        const btn = $("#multiSelectBtn");
+        if (btn) btn.setAttribute("aria-pressed", String(multiSelectMode));
+        if (multiSelectMode) toast("Tap days to select, then press Remove Selected");
+      }
+
+      function removeMultiSelected() {
+        if (multiSelected.size === 0) return toast("Select at least one day first");
+        const count = multiSelected.size;
+        confirmAction(`Remove ${count} selected day${count === 1 ? "" : "s"} from period log?`, () => {
+          state.periodDays = state.periodDays.filter((d) => !multiSelected.has(d));
+          multiSelected.clear();
+          multiSelectMode = false;
+          persist(`${count} period day${count === 1 ? "" : "s"} removed`);
+        });
+      }
+
       function persist(message) {
         Data.save();
         Renderer.all();
@@ -675,17 +774,51 @@
       }
 
       function getPrediction() {
-        const lastStart = getLastPeriodStart();
-        if (!lastStart) return { nextStart: null, periodDays: [], fertileStart: null, fertileEnd: null, fertileDays: [] };
+        // Use the last period BLOCK (start + actual end date user logged).
+        const blocks = getPeriodBlocks();
+        const lastBlock = blocks.at(-1);
+        if (!lastBlock) return { nextStart: null, periodDays: [], fertileStart: null, fertileEnd: null, fertileDays: [], ovulationDay: null, ovulationMap: {} };
+
+        const lastEnd = lastBlock.end;   // actual last day of period as logged
+        const lastStart = lastBlock.start;
+
+        // Next period starts approximately cycleLength days after the PERIOD START.
+        // We advance until the prediction is not entirely in the past.
         let next = toISO(addDays(parseISO(lastStart), state.settings.cycleLength));
-        while (daysBetween(today(), next) < -state.settings.periodDuration) {
+        while (daysBetween(today(), next) < 0) {
           next = toISO(addDays(parseISO(next), state.settings.cycleLength));
         }
-        const periodDays = Array.from({ length: state.settings.periodDuration }, (_, i) => toISO(addDays(parseISO(next), i)));
-        const fertileStart = toISO(addDays(parseISO(next), -19));
-        const fertileEnd = toISO(addDays(parseISO(next), -12));
-        const fertileDays = Array.from({ length: 8 }, (_, i) => toISO(addDays(parseISO(fertileStart), i)));
-        return { nextStart: next, periodDays, fertileStart, fertileEnd, fertileDays };
+        const periodDays = Array.from({ length: state.settings.periodDuration }, (_, i) =>
+          toISO(addDays(parseISO(next), i))
+        );
+
+        // ── OVULATION WINDOW ──────────────────────────────────────────────────
+        // Clinical basis: ovulation typically occurs 10–16 days after menstruation
+        // ends, with the peak at ~day 12–14 post-period-end for average 28-day cycles.
+        // We anchor at lastEnd + 10 days as the earliest fertile day, and the
+        // peak (ovulation day) at lastEnd + 13 (≈ day 14 of new cycle when period is 5d).
+        // This matches the Dunson 2002 / Wilcox 1995 model used in the probability weights.
+        //
+        // For other cycle lengths we scale: ovDay = lastEnd + (cycleLength - 15).
+        // Minimum offset is 7 days after period end to avoid overlap.
+        const daysAfterEnd = Math.max(7, state.settings.cycleLength - 15);
+        const ovDay = toISO(addDays(parseISO(lastEnd), daysAfterEnd));
+
+        const fertileStart = toISO(addDays(parseISO(ovDay), -5));
+        const fertileEnd   = toISO(addDays(parseISO(ovDay),  1));
+        const fertileDays  = Array.from({ length: 7 }, (_, i) =>
+          toISO(addDays(parseISO(fertileStart), i))
+        );
+
+        // Relative conception probability per offset from ovulation day.
+        // Source: Dunson et al. 2002 (Hum. Reprod.) fecundability estimates.
+        const ovOffsets = [[-5, 0.10], [-4, 0.16], [-3, 0.28], [-2, 0.40], [-1, 0.55], [0, 1.0], [1, 0.38]];
+        const ovulationMap = {};
+        for (const [offset, prob] of ovOffsets) {
+          ovulationMap[toISO(addDays(parseISO(ovDay), offset))] = prob;
+        }
+
+        return { nextStart: next, periodDays, fertileStart, fertileEnd, fertileDays, ovulationDay: ovDay, ovulationMap };
       }
 
       function getLastPeriodStart() {

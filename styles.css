@@ -648,6 +648,27 @@ button:active { transform: translateY(0) scale(0.97); }
   background: linear-gradient(135deg, rgba(233, 196, 106, 0.35), rgba(254, 250, 224, 0.8));
 }
 
+/* Ovulation gradient days — background applied inline by JS */
+.day.multi-selected {
+  outline: 2.5px solid var(--forest);
+  outline-offset: -2px;
+  box-shadow: 0 0 0 4px rgba(26, 77, 46, 0.22);
+  transform: scale(1.08);
+}
+
+/* Ovulation peak dot shown on the ovulation day itself */
+.ov-dot {
+  position: absolute;
+  bottom: 0.35rem;
+  right: 50%;
+  transform: translateX(50%);
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 50%;
+  background: #c81e3c;
+  box-shadow: 0 0 4px rgba(200, 30, 60, 0.7);
+}
+
 .day.symptom::after,
 .day.note::before {
   content: "";
@@ -686,6 +707,33 @@ button:active { transform: translateY(0) scale(0.97); }
 .dot.sage { background: var(--gold); }
 .dot.plum { background: var(--emerald); }
 .dot.gold { background: var(--amber); }
+/* Ovulation fertility legend dots */
+.dot.ov-low  { background: rgba(255, 182, 193, 0.95); border: 1px solid rgba(220,100,120,0.4); }
+.dot.ov-mid  { background: rgba(240, 90, 120, 0.95); }
+.dot.ov-high { background: rgba(200, 30, 60, 0.95); }
+
+/* ── MULTI-SELECT TOOLBAR ── */
+.multi-select-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 1rem;
+  background: rgba(26, 77, 46, 0.1);
+  border: 1.5px solid rgba(26, 77, 46, 0.25);
+  animation: fadeIn 200ms ease;
+}
+
+.multi-count {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--forest);
+}
+
+[data-theme="dark"] .multi-count { color: var(--jade); }
 
 /* ── FORMS ── */
 .form { display: grid; gap: 0.8rem; }
@@ -734,6 +782,63 @@ input[type="range"] {
   font-size: 1.05rem;
 }
 .selected-day p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+
+/* ── PERIOD LOG FORM (inside selected day panel) ── */
+.period-log-form {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.9rem;
+  border-radius: 1rem;
+  background: rgba(82, 183, 136, 0.08);
+  border: 1.5px solid rgba(82, 183, 136, 0.22);
+}
+
+.period-log-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--forest);
+}
+
+[data-theme="dark"] .period-log-title { color: var(--jade); }
+
+.period-log-hint {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.period-range-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.period-range-label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  flex: 1 1 120px;
+}
+
+.period-range-label input[type="date"] {
+  min-height: 42px;
+  font-size: 0.9rem;
+  padding: 0.5rem 0.7rem;
+}
+
+.period-range-sep {
+  font-size: 1.1rem;
+  color: var(--jade);
+  padding-bottom: 0.5rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
 
 /* ── SYMPTOM LIST ── */
 .symptom-list { display: grid; gap: 0.6rem; }
@@ -1112,6 +1217,85 @@ dialog::backdrop {
 @keyframes shimmer {
   from { background-position: 100% 0; }
   to   { background-position: -100% 0; }
+}
+
+/* ── APP FOOTER ── */
+.app-footer {
+  position: relative;
+  z-index: 1;
+  margin-top: 2.5rem;
+  padding-bottom: 5.5rem; /* clear fixed tab bar on mobile */
+}
+
+.footer-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.9rem;
+  padding: 1rem 1.4rem;
+  border-radius: var(--radius);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: var(--small-shadow);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.footer-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: 'Playfair Display', serif;
+  font-weight: 900;
+  font-size: 0.95rem;
+  background: var(--grad-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+[data-theme="dark"] .footer-brand {
+  background: linear-gradient(135deg, var(--jade), var(--gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.footer-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 0.45rem;
+  background: var(--grad-hero);
+  color: var(--gold);
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  /* override gradient text for this element */
+  -webkit-text-fill-color: var(--gold);
+  flex-shrink: 0;
+}
+
+.footer-credit strong {
+  color: var(--forest);
+  font-weight: 700;
+}
+
+[data-theme="dark"] .footer-credit strong { color: var(--jade); }
+
+.footer-divider {
+  color: var(--line);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.footer-year { font-variant-numeric: tabular-nums; }
+
+@media (min-width: 780px) {
+  .app-footer { padding-bottom: 0; }
 }
 
 /* ── ACCESSIBILITY ── */

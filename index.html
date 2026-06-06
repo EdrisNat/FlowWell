@@ -105,9 +105,12 @@
       <div class="section-title">
         <div>
           <h2>Cycle Tracker</h2>
-          <p>Tap a date to log or review your day.</p>
+          <p>Tap a date to log or review. Use <strong>Select Days</strong> to remove multiple period days at once.</p>
         </div>
-        <button class="secondary" type="button" id="todayBtn">Today</button>
+        <div class="button-row" style="gap:0.5rem;">
+          <button class="secondary" type="button" id="todayBtn">Today</button>
+          <button class="chip" type="button" id="multiSelectBtn" aria-pressed="false">&#9744; Select Days</button>
+        </div>
       </div>
       <div class="grid two">
         <article class="card calendar-card">
@@ -117,9 +120,19 @@
             <button class="icon-button" type="button" id="nextMonth" aria-label="Next month">&gt;</button>
           </div>
           <div class="calendar-grid" id="calendar" aria-label="Monthly calendar"></div>
+          <!-- Multi-select toolbar — shown in JS when mode is active -->
+          <div id="multiSelectToolbar" class="multi-select-toolbar" style="display:none;" role="toolbar" aria-label="Multi-select period days">
+            <span id="multiSelectCount" class="multi-count">0 days selected</span>
+            <div class="button-row" style="gap:0.5rem;">
+              <button class="danger" type="button" id="removeSelectedBtn">Remove Selected</button>
+              <button class="secondary" type="button" id="multiSelectBtn" aria-pressed="false">Cancel</button>
+            </div>
+          </div>
           <div class="legend">
-            <span><i class="dot"></i>Logged period</span>
-            <span><i class="dot sage"></i>Fertile window</span>
+            <span><i class="dot"></i>Period</span>
+            <span><i class="dot ov-low"></i>Low fertility</span>
+            <span><i class="dot ov-mid"></i>Rising fertility</span>
+            <span><i class="dot ov-high"></i>Peak / Ovulation</span>
             <span><i class="dot plum"></i>Symptoms</span>
             <span><i class="dot gold"></i>Note</span>
           </div>
@@ -336,6 +349,19 @@
       </div>
     </section>
   </main>
+
+  <footer class="app-footer">
+    <div class="footer-inner">
+      <span class="footer-brand">
+        <span class="footer-mark" aria-hidden="true">FW</span>
+        FlowWell
+      </span>
+      <span class="footer-divider" aria-hidden="true">·</span>
+      <span class="footer-credit">Developed by <strong>Makda Yemane Araya</strong></span>
+      <span class="footer-divider" aria-hidden="true">·</span>
+      <span class="footer-year">© 2026</span>
+    </div>
+  </footer>
 
   <script src="app.js" defer></script>
 </body>
