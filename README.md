@@ -7,6 +7,7 @@ The project is built as a static Progressive Web App (PWA) using HTML, CSS, and 
 ## Key Features
 
 - Cycle tracking with calendar-based period logging and estimated next-period predictions.
+- Predictions use observed cycle intervals when enough history exists and show a confidence label; estimates are not medical advice.
 - Symptom and pain logging with custom symptom support and a simple history chart.
 - Product locator for reporting and updating campus pad or hygiene product locations.
 - Myth-buster content for respectful menstrual health education.
@@ -101,7 +102,7 @@ Important privacy considerations:
 Important health considerations:
 
 - FlowWell is not medical advice.
-- Cycle predictions are estimates and should not be used as contraception.
+- Cycle predictions are estimates and should not be used as contraception. They become more useful after multiple completed cycles and may be marked irregular when recorded cycle lengths vary widely.
 - Users should seek urgent medical care for severe pain, fainting, fever, unusual discharge, or unusually heavy bleeding.
 
 ## Development Notes
@@ -127,7 +128,7 @@ When changing cached assets, update `CACHE_NAME` in `sw.js` so existing installa
 
 - Records are not shared across devices unless the user exports and imports a backup.
 - Product locations are community-style local entries in the user's browser, not live verified inventory.
-- Emergency contacts and resource entries are placeholder-style values and should be replaced with verified campus or institutional contacts before real-world use.
+- Emergency contacts start as demo values and can be replaced from Privacy & Settings with verified campus or institutional contacts before real-world use.
 - The app depends on browser support for modern web APIs, especially for encryption and service-worker features.
 - Google Fonts are imported from the web, so typography may fall back to system fonts when fully offline before fonts have been cached by the browser.
 

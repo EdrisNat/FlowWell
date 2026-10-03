@@ -337,6 +337,21 @@
             <div><strong>Clear all local data</strong><br><span>This wipes FlowWell records from this browser only.</span></div>
             <button class="danger" type="button" id="clearData">Clear</button>
           </div>
+          <div class="resource-settings">
+            <div class="section-title" style="margin-top:1rem">
+              <div>
+                <h3>Health contacts</h3>
+                <p>Replace demo contacts with verified campus numbers.</p>
+              </div>
+            </div>
+            <div class="grid" id="resourceSettingsList"></div>
+            <form class="form" id="resourceForm">
+              <label>Contact name <input id="resourceName" required placeholder="e.g., Campus Health Center"></label>
+              <label>Phone number <input id="resourcePhone" required inputmode="tel" placeholder="e.g., +256 700 000 000"></label>
+              <label>Support note <input id="resourceNote" required placeholder="What this contact helps with"></label>
+              <button class="secondary" type="submit">Add health contact</button>
+            </form>
+          </div>
         </article>
       </div>
     </section>

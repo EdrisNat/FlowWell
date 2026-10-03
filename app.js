@@ -37,7 +37,7 @@
           fact: "Private, respectful conversations help students get products, care, and support when they need it."
         }
       ];
-      const resources = [
+      const defaultResources = [
         { name: "University Health Center", phone: "+256700000101", note: "Campus medical support and pain guidance" },
         { name: "Female-Friendly Clinic", phone: "+256700000202", note: "Confidential care and reproductive health support" },
         { name: "Nurse Helpline", phone: "+256700000303", note: "Fast advice when symptoms feel worrying" }
@@ -56,6 +56,7 @@
           { id: uid(), building: "Main Library", floor: "Level 1", room: "Student Support Desk", product: "Free", verified: today(), distance: 4, out: false },
           { id: uid(), building: "Science Block", floor: "Second floor", room: "Vending Area", product: "Vending Machine", verified: today(), distance: 6, out: false }
         ],
+        resources: defaultResources.map((resource) => ({ ...resource, id: uid() })),
         believedMyths: [],
         letters: [],
         settings: {
@@ -159,7 +160,8 @@
             { label: "Days since last period", value: lastStart ? daysBetween(lastStart, today()) : "Not set" },
             { label: "Days until next period", value: prediction.nextStart ? Math.max(0, daysBetween(today(), prediction.nextStart)) : "Log first" },
             { label: "Next expected start", value: prediction.nextStart ? formatShort(prediction.nextStart) : "Unknown" },
-            { label: state.settings.showFertile ? "Fertile window" : "Ovulation window", value: prediction.fertileStart ? `${formatShort(prediction.fertileStart)} – ${formatShort(prediction.fertileEnd)}` : "Log a period first" }
+            { label: state.settings.showFertile ? "Fertile window" : "Ovulation window", value: prediction.fertileStart ? `${formatShort(prediction.fertileStart)} – ${formatShort(prediction.fertileEnd)}` : "Log a period first" },
+            { label: "Prediction confidence", value: prediction.confidence }
           ];
           $("#dashboardStats").innerHTML = stats.map((stat) => `
             <div class="stat">
@@ -333,7 +335,7 @@
           }).join("");
         },
         resources() {
-          $("#callList").innerHTML = resources.map((item) => `
+          $("#callList").innerHTML = state.resources.map((item) => `
             <div class="resource-call">
               <div>
                 <h3>${escapeHtml(item.name)}</h3>
@@ -360,6 +362,15 @@
             : "Records are stored on this device. Add a PIN to encrypt them.";
           $("#lockNow").disabled = !privacy.encrypted || privacy.locked;
           $("#removePin").disabled = !privacy.encrypted || privacy.locked;
+          $("#resourceSettingsList").innerHTML = state.resources.map((item) => `
+            <div class="resource-call">
+              <div>
+                <h3>${escapeHtml(item.name)}</h3>
+                <div class="meta">${escapeHtml(item.phone)} - ${escapeHtml(item.note)}</div>
+              </div>
+              <button class="danger" type="button" data-remove-resource="${item.id}">Delete</button>
+            </div>
+          `).join("");
         },
         logs() {
           const blocks = getPeriodBlocks();
@@ -405,6 +416,8 @@
           $("#addSymptomBtn").addEventListener("click", addCustomSymptom);
           $("#locationForm").addEventListener("submit", addLocation);
           $("#locationList").addEventListener("click", onLocationAction);
+          $("#resourceForm").addEventListener("submit", addResource);
+          $("#resourceSettingsList").addEventListener("click", onResourceAction);
           $("#sortLocations").addEventListener("click", () => { locationAscending = !locationAscending; Renderer.locations(); toast(`Sorted ${locationAscending ? "nearest first" : "farthest first"}`); });
           $("#mythList").addEventListener("click", onMythAction);
           $("#letterForm").addEventListener("submit", generateLetter);
@@ -463,6 +476,7 @@
           const startVal = $("#periodStartInput")?.value || selectedDate;
           const endVal   = $("#periodEndInput")?.value   || selectedDate;
           if (endVal < startVal) return toast("End date must be on or after the start date");
+          if (endVal > today()) return toast("Period logs cannot be saved for future dates");
           const span = daysBetween(startVal, endVal);
           if (span > 14) return toast("Range too long — please enter up to 14 days");
           const days = Array.from({ length: span + 1 }, (_, i) => toISO(addDays(parseISO(startVal), i)));
@@ -527,6 +541,27 @@
         event.target.reset();
         $("#locDistance").value = 5;
         persist("Location reported");
+      }
+
+      function addResource(event) {
+        event.preventDefault();
+        const name = $("#resourceName").value.trim();
+        const phone = $("#resourcePhone").value.trim();
+        const note = $("#resourceNote").value.trim();
+        if (!name || !phone || !note) return toast("Complete all resource fields first");
+        if (!/^[+\d][\d\s().-]{5,24}$/.test(phone)) return toast("Enter a valid phone number");
+        state.resources.push({ id: uid(), name, phone, note });
+        event.target.reset();
+        persist("Health resource added");
+      }
+
+      function onResourceAction(event) {
+        const resourceId = event.target.closest("[data-remove-resource]")?.dataset.removeResource;
+        if (!resourceId) return;
+        confirmAction("Delete this health resource?", () => {
+          state.resources = state.resources.filter((resource) => resource.id !== resourceId);
+          persist("Health resource deleted");
+        });
       }
 
       function onLocationAction(event) {
@@ -848,19 +883,18 @@
       }
 
       function getPrediction() {
-        // Use the last period BLOCK (start + actual end date user logged).
-        const blocks = getPeriodBlocks();
+        const blocks = getPeriodBlocks().filter((block) => block.start <= today());
         const lastBlock = blocks.at(-1);
-        if (!lastBlock) return { nextStart: null, periodDays: [], fertileStart: null, fertileEnd: null, fertileDays: [], ovulationDay: null, ovulationMap: {} };
+        if (!lastBlock) return { nextStart: null, periodDays: [], fertileStart: null, fertileEnd: null, fertileDays: [], ovulationDay: null, ovulationMap: {}, confidence: "Log first period" };
 
         const lastEnd = lastBlock.end;   // actual last day of period as logged
         const lastStart = lastBlock.start;
+        const profile = getCycleProfile(blocks);
 
-        // Next period starts approximately cycleLength days after the PERIOD START.
-        // We advance until the prediction is not entirely in the past.
-        let next = toISO(addDays(parseISO(lastStart), state.settings.cycleLength));
+        // Prefer observed cycle intervals once two or more starts are available.
+        let next = toISO(addDays(parseISO(lastStart), profile.length));
         while (daysBetween(today(), next) < 0) {
-          next = toISO(addDays(parseISO(next), state.settings.cycleLength));
+          next = toISO(addDays(parseISO(next), profile.length));
         }
         const periodDays = Array.from({ length: state.settings.periodDuration }, (_, i) =>
           toISO(addDays(parseISO(next), i))
@@ -892,11 +926,22 @@
           ovulationMap[toISO(addDays(parseISO(ovDay), offset))] = prob;
         }
 
-        return { nextStart: next, periodDays, fertileStart, fertileEnd, fertileDays, ovulationDay: ovDay, ovulationMap };
+        return { nextStart: next, periodDays, fertileStart, fertileEnd, fertileDays, ovulationDay: ovDay, ovulationMap, confidence: profile.confidence };
+      }
+
+      function getCycleProfile(blocks = getPeriodBlocks()) {
+        const starts = blocks.map((block) => block.start);
+        const intervals = starts.slice(1).map((start, index) => daysBetween(starts[index], start)).filter((length) => length >= 15 && length <= 60);
+        if (!intervals.length) return { length: state.settings.cycleLength, confidence: "Early estimate" };
+        const average = Math.round(intervals.reduce((total, length) => total + length, 0) / intervals.length);
+        const variation = Math.max(...intervals) - Math.min(...intervals);
+        let confidence = intervals.length >= 3 ? "Good history" : "Building history";
+        if (variation > 7) confidence = "Irregular history";
+        return { length: average, confidence };
       }
 
       function getLastPeriodStart() {
-        return getPeriodBlocks().at(-1)?.start || null;
+        return getPeriodBlocks().filter((block) => block.start <= today()).at(-1)?.start || null;
       }
 
       function getPeriodBlocks() {
@@ -968,6 +1013,12 @@
           periodDays: uniqueSorted(importedPeriodDays),
           symptoms: importedSymptoms,
           locations: importedLocations,
+          resources: Array.isArray(incoming.resources) ? incoming.resources.filter((resource) => isObject(resource) && resource.name && resource.phone && resource.note).map((resource) => ({
+            id: typeof resource.id === "string" && resource.id ? resource.id : uid(),
+            name: String(resource.name).slice(0, 120),
+            phone: String(resource.phone).slice(0, 40),
+            note: String(resource.note).slice(0, 240)
+          })) : clone(base.resources),
           believedMyths: Array.isArray(incoming.believedMyths) ? incoming.believedMyths.filter((index) => Number.isInteger(index) && index >= 0 && index < myths.length) : clone(base.believedMyths),
           letters: importedLetters,
           settings: {
