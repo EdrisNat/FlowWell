@@ -4,6 +4,7 @@
       const STORAGE_KEY = "flowwell.v1";
       const SECURE_STORAGE_KEY = "flowwell.secure.v1";
       const dayMs = 86400000;
+      const AUTO_LOCK_MS = 15 * 60 * 1000;
       const today = () => toISO(new Date());
       const symptoms = [
         ["Cramps", "C"],
@@ -80,6 +81,9 @@
       let calendarCursor = startOfMonth(new Date());
       let currentLetter = "";
       let locationAscending = true;
+      let failedUnlockAttempts = 0;
+      let unlockBlockedUntil = 0;
+      let inactivityTimer = 0;
 
       const $ = (selector, root = document) => root.querySelector(selector);
       const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -108,7 +112,7 @@
       Data.save = () => {
         clearTimeout(pendingSave);
         pendingSave = setTimeout(() => {
-          Data.saveNow();
+          Data.saveNow().catch(() => toast("FlowWell could not save changes on this device"));
         }, 140);
       };
       Data.saveNow = async () => {
@@ -414,11 +418,14 @@
           $("#lockNow").addEventListener("click", lockNow);
           $("#removePin").addEventListener("click", () => confirmAction("Remove PIN lock and store FlowWell data without encryption?", removePrivacyPin));
           $("#exportData").addEventListener("click", exportData);
+          $("#exportEncryptedData").addEventListener("click", exportEncryptedData);
           $("#importData").addEventListener("change", importData);
           $("#clearData").addEventListener("click", () => confirmAction("Clear all FlowWell data from this browser?", clearData));
           $("#periodLogList").addEventListener("click", onPeriodLogAction);
           const multiSelectBtn = $("#multiSelectBtn");
           if (multiSelectBtn) multiSelectBtn.addEventListener("click", toggleMultiSelect);
+          const cancelMultiSelectBtn = $("#cancelMultiSelectBtn");
+          if (cancelMultiSelectBtn) cancelMultiSelectBtn.addEventListener("click", toggleMultiSelect);
           const removeSelectedBtn = $("#removeSelectedBtn");
           if (removeSelectedBtn) removeSelectedBtn.addEventListener("click", removeMultiSelected);
           $("#letterHistory").addEventListener("click", onLetterHistoryAction);
@@ -500,14 +507,21 @@
 
       function addLocation(event) {
         event.preventDefault();
+        const building = $("#locBuilding").value.trim();
+        const floor = $("#locFloor").value.trim();
+        const room = $("#locRoom").value.trim();
+        const distance = Number($("#locDistance").value);
+        if (!building || !floor || !room || !Number.isFinite(distance) || distance < 1) {
+          return toast("Enter a valid location and distance");
+        }
         state.locations.push({
           id: uid(),
-          building: $("#locBuilding").value.trim(),
-          floor: $("#locFloor").value.trim(),
-          room: $("#locRoom").value.trim(),
+          building,
+          floor,
+          room,
           product: $("#locProduct").value,
           verified: today(),
-          distance: Number($("#locDistance").value || 99),
+          distance,
           out: false
         });
         event.target.reset();
@@ -585,13 +599,20 @@
 
       function saveLetterHistory() {
         if (!currentLetter) return toast("Generate a letter first");
+        const studentName = $("#studentName").value.trim();
+        const courseCode = $("#courseCode").value.trim();
+        const lecturerName = $("#lecturerName").value.trim();
+        if (!studentName || !courseCode || !lecturerName) return toast("Generate a complete letter first");
+        if (state.letters[0]?.text === currentLetter && state.letters[0]?.created === today()) {
+          return toast("This letter is already saved");
+        }
         state.letters.unshift({
           id: uid(),
           created: today(),
           text: currentLetter,
-          studentName: $("#studentName").value.trim(),
-          courseCode: $("#courseCode").value.trim(),
-          lecturerName: $("#lecturerName").value.trim()
+          studentName,
+          courseCode,
+          lecturerName
         });
         persist("Letter saved");
       }
@@ -603,6 +624,10 @@
 
       async function unlockWithPin(event) {
         event.preventDefault();
+        if (Date.now() < unlockBlockedUntil) {
+          const seconds = Math.ceil((unlockBlockedUntil - Date.now()) / 1000);
+          return toast(`Too many attempts. Try again in ${seconds} seconds`);
+        }
         const pin = $("#unlockPin").value;
         const payload = getSecurePayload();
         if (!payload || !pin) return toast("Enter your PIN");
@@ -614,12 +639,21 @@
           privacy.salt = payload.salt;
           privacy.encrypted = true;
           privacy.locked = false;
+          failedUnlockAttempts = 0;
+          unlockBlockedUntil = 0;
           $("#unlockPin").value = "";
           selectedDate = today();
           calendarCursor = startOfMonth(new Date());
           Renderer.all();
+          scheduleAutoLock();
           toast("FlowWell unlocked");
         } catch {
+          failedUnlockAttempts += 1;
+          if (failedUnlockAttempts >= 5) {
+            unlockBlockedUntil = Date.now() + 30 * 1000;
+            failedUnlockAttempts = 0;
+            return toast("Too many attempts. Try again in 30 seconds");
+          }
           toast("That PIN did not unlock your records");
         }
       }
@@ -627,7 +661,9 @@
       async function setPrivacyPin(event) {
         event.preventDefault();
         const pin = $("#privacyPin").value.trim();
-        if (pin.length < 4) return toast("Use at least 4 characters for the PIN");
+        const confirmation = $("#privacyPinConfirm").value.trim();
+        if (!/^\d{6}$/.test(pin)) return toast("Use exactly 6 digits for the PIN");
+        if (pin !== confirmation) return toast("PIN confirmation does not match");
         try {
           const salt = randomBase64(16);
           const key = await deriveKey(pin, salt);
@@ -638,7 +674,9 @@
           await Data.saveNow();
           localStorage.removeItem(STORAGE_KEY);
           $("#privacyPin").value = "";
+          $("#privacyPinConfirm").value = "";
           Renderer.all();
+          scheduleAutoLock();
           toast("PIN lock enabled");
         } catch {
           toast("PIN lock could not be enabled here");
@@ -647,6 +685,7 @@
 
       function lockNow() {
         if (!privacy.encrypted) return toast("Set a PIN first");
+        clearTimeout(inactivityTimer);
         privacy.key = null;
         privacy.salt = null;
         privacy.locked = true;
@@ -660,26 +699,61 @@
         privacy.encrypted = false;
         privacy.key = null;
         privacy.salt = null;
+        clearTimeout(inactivityTimer);
         localStorage.removeItem(SECURE_STORAGE_KEY);
         await Data.saveNow();
         Renderer.all();
         toast("PIN lock removed");
       }
 
-      function exportData() {
-        Data.saveNow();
+      async function exportData() {
+        confirmAction("This backup will contain your private records without encryption. Store it somewhere private.", exportPlaintextBackup);
+      }
+
+      async function exportPlaintextBackup() {
+        try {
+          await Data.saveNow();
+        } catch {
+          return toast("Backup could not be prepared on this device");
+        }
         downloadBlob(new Blob([JSON.stringify(state, null, 2)], { type: "application/json" }), `flowwell-backup-${today()}.json`);
         toast("Backup exported");
+      }
+
+      async function exportEncryptedData() {
+        const password = $("#backupPassword").value;
+        if (password.length < 8) return toast("Use at least 8 characters for the backup password");
+        try {
+          const salt = randomBase64(16);
+          const key = await deriveKey(password, salt);
+          const payload = await encryptState(state, key, salt);
+          payload.kind = "flowwell-backup";
+          downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }), `flowwell-encrypted-backup-${today()}.json`);
+          $("#backupPassword").value = "";
+          toast("Encrypted backup exported");
+        } catch {
+          toast("Encrypted backup could not be created");
+        }
       }
 
       function importData(event) {
         const file = event.target.files?.[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = () => {
+        reader.onload = async () => {
           try {
-            state = mergeState(defaultState, JSON.parse(reader.result));
-            Data.saveNow();
+            const imported = JSON.parse(reader.result);
+            if (!isObject(imported) || Array.isArray(imported)) throw new Error("Invalid backup format");
+            let importedState = imported;
+            if (imported.kind === "flowwell-backup") {
+              const password = $("#backupPassword").value;
+              if (password.length < 8 || !isEncryptedPayload(imported)) throw new Error("Invalid encrypted backup");
+              const key = await deriveKey(password, imported.salt);
+              importedState = await decryptState(imported, key);
+              $("#backupPassword").value = "";
+            }
+            state = mergeState(defaultState, importedState);
+            await Data.saveNow();
             Renderer.all();
             toast("Backup imported");
           } catch {
@@ -856,23 +930,86 @@
       }
 
       function mergeState(base, incoming) {
+        if (!isObject(incoming)) return clone(base);
+        const importedPeriodDays = Array.isArray(incoming.periodDays) ? incoming.periodDays.filter(isValidISODate) : [];
+        const importedSymptoms = isObject(incoming.symptoms) ? Object.entries(incoming.symptoms).reduce((result, [date, entry]) => {
+          if (!isValidISODate(date) || !isObject(entry)) return result;
+          const values = isObject(entry.values) ? Object.entries(entry.values).reduce((safeValues, [name, value]) => {
+            if (typeof name === "string" && name.trim() && Number.isFinite(Number(value))) {
+              safeValues[name.slice(0, 80)] = Math.max(0, Math.min(5, Number(value)));
+            }
+            return safeValues;
+          }, {}) : {};
+          result[date] = { values, notes: typeof entry.notes === "string" ? entry.notes.slice(0, 2000) : "" };
+          return result;
+        }, {}) : {};
+        const importedLocations = Array.isArray(incoming.locations) ? incoming.locations.filter((location) => isObject(location) && location.building && location.floor && location.room).map((location) => ({
+          id: typeof location.id === "string" && location.id ? location.id : uid(),
+          building: String(location.building).slice(0, 120),
+          floor: String(location.floor).slice(0, 120),
+          room: String(location.room).slice(0, 120),
+          product: String(location.product || "Pads").slice(0, 80),
+          verified: isValidISODate(location.verified) ? location.verified : today(),
+          distance: Number.isFinite(Number(location.distance)) && Number(location.distance) >= 1 ? Number(location.distance) : 99,
+          out: Boolean(location.out)
+        })) : clone(base.locations);
+        const importedLetters = Array.isArray(incoming.letters) ? incoming.letters.filter((letter) => isObject(letter) && letter.text && letter.studentName && letter.courseCode && letter.lecturerName).map((letter) => ({
+          id: typeof letter.id === "string" && letter.id ? letter.id : uid(),
+          created: isValidISODate(letter.created) ? letter.created : today(),
+          text: String(letter.text).slice(0, 10000),
+          studentName: String(letter.studentName).slice(0, 160),
+          courseCode: String(letter.courseCode).slice(0, 80),
+          lecturerName: String(letter.lecturerName).slice(0, 160)
+        })) : clone(base.letters);
+        const importedSettings = isObject(incoming.settings) ? incoming.settings : {};
         return {
           ...clone(base),
           ...incoming,
-          periodDays: uniqueSorted(incoming.periodDays || base.periodDays),
-          symptoms: incoming.symptoms || base.symptoms,
-          locations: incoming.locations || base.locations,
-          believedMyths: incoming.believedMyths || base.believedMyths,
-          letters: incoming.letters || base.letters,
-          settings: { ...base.settings, ...(incoming.settings || {}) }
+          periodDays: uniqueSorted(importedPeriodDays),
+          symptoms: importedSymptoms,
+          locations: importedLocations,
+          believedMyths: Array.isArray(incoming.believedMyths) ? incoming.believedMyths.filter((index) => Number.isInteger(index) && index >= 0 && index < myths.length) : clone(base.believedMyths),
+          letters: importedLetters,
+          settings: {
+            ...base.settings,
+            cycleLength: clampInteger(importedSettings.cycleLength, base.settings.cycleLength, 21, 35),
+            periodDuration: clampInteger(importedSettings.periodDuration, base.settings.periodDuration, 3, 7),
+            showFertile: Boolean(importedSettings.showFertile),
+            theme: importedSettings.theme === "dark" ? "dark" : "light",
+            highContrast: Boolean(importedSettings.highContrast)
+          }
         };
+      }
+
+      function isObject(value) {
+        return value !== null && typeof value === "object";
+      }
+
+      function isValidISODate(value) {
+        return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(parseISO(value).getTime()) && toISO(parseISO(value)) === value;
+      }
+
+      function clampInteger(value, fallback, min, max) {
+        const number = Number(value);
+        return Number.isInteger(number) ? Math.max(min, Math.min(max, number)) : fallback;
       }
 
       function getSecurePayload() {
         try {
-          return JSON.parse(localStorage.getItem(SECURE_STORAGE_KEY));
+          const payload = JSON.parse(localStorage.getItem(SECURE_STORAGE_KEY));
+          if (!isObject(payload) || payload.version !== 1 || !isValidBase64(payload.salt) || !isValidBase64(payload.iv) || !isValidBase64(payload.data)) return null;
+          if (base64ToBytes(payload.iv).length !== 12 || base64ToBytes(payload.salt).length < 16 || base64ToBytes(payload.data).length < 17) return null;
+          return payload;
         } catch {
           return null;
+        }
+      }
+
+      function isEncryptedPayload(payload) {
+        try {
+          return isObject(payload) && payload.version === 1 && payload.kind === "flowwell-backup" && isValidBase64(payload.salt) && isValidBase64(payload.iv) && isValidBase64(payload.data) && base64ToBytes(payload.salt).length >= 16 && base64ToBytes(payload.iv).length === 12 && base64ToBytes(payload.data).length >= 17;
+        } catch {
+          return false;
         }
       }
 
@@ -913,6 +1050,7 @@
       }
 
       async function decryptState(payload, key) {
+        if (!isObject(payload) || payload.version !== 1) throw new Error("Unsupported encrypted payload");
         const plain = await crypto.subtle.decrypt(
           { name: "AES-GCM", iv: base64ToBytes(payload.iv) },
           key,
@@ -933,6 +1071,29 @@
 
       function base64ToBytes(base64) {
         return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+      }
+
+      function isValidBase64(value) {
+        if (typeof value !== "string" || !value || value.length % 4 === 1 || !/^[A-Za-z0-9+/]*={0,2}$/.test(value)) return false;
+        try {
+          atob(value);
+          return true;
+        } catch {
+          return false;
+        }
+      }
+
+      function scheduleAutoLock() {
+        clearTimeout(inactivityTimer);
+        if (!privacy.encrypted || privacy.locked) return;
+        inactivityTimer = setTimeout(() => {
+          lockNow();
+          toast("FlowWell locked after inactivity");
+        }, AUTO_LOCK_MS);
+      }
+
+      function registerActivity() {
+        if (!privacy.locked) scheduleAutoLock();
       }
 
       function downloadBlob(blob, filename) {
@@ -1013,6 +1174,9 @@
         Events.init();
         Renderer.all();
         $("#absenceDate").value = today();
+        ["pointerdown", "keydown", "touchstart"].forEach((eventName) => {
+          window.addEventListener(eventName, registerActivity, { passive: true });
+        });
         registerServiceWorker();
         setTimeout(() => $("#skeleton").classList.add("hidden"), 420);
       });

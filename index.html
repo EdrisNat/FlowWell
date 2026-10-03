@@ -27,7 +27,7 @@
       <p>Your saved records are encrypted on this device. Enter your PIN to unlock them for this session.</p>
       <form class="form" id="unlockForm">
         <label>Private PIN
-          <input id="unlockPin" type="password" inputmode="numeric" autocomplete="current-password" minlength="4" placeholder="Enter PIN">
+          <input id="unlockPin" type="password" inputmode="numeric" autocomplete="current-password" minlength="6" maxlength="6" pattern="[0-9]{6}" placeholder="Enter 6-digit PIN" required>
         </label>
         <button class="primary" type="submit">Unlock FlowWell</button>
         <button class="danger" type="button" id="resetLockedData">Forgot PIN: erase local records</button>
@@ -125,7 +125,7 @@
             <span id="multiSelectCount" class="multi-count">0 days selected</span>
             <div class="button-row" style="gap:0.5rem;">
               <button class="danger" type="button" id="removeSelectedBtn">Remove Selected</button>
-              <button class="secondary" type="button" id="multiSelectBtn" aria-pressed="false">Cancel</button>
+              <button class="secondary" type="button" id="cancelMultiSelectBtn" aria-pressed="false">Cancel</button>
             </div>
           </div>
           <div class="legend">
@@ -302,7 +302,10 @@
           </div>
           <form class="form" id="pinForm" style="margin-top:1rem">
             <label>New privacy PIN
-              <input id="privacyPin" type="password" inputmode="numeric" autocomplete="new-password" minlength="4" placeholder="At least 4 characters">
+              <input id="privacyPin" type="password" inputmode="numeric" autocomplete="new-password" minlength="6" maxlength="6" pattern="[0-9]{6}" placeholder="Enter 6-digit PIN" required>
+            </label>
+            <label>Confirm privacy PIN
+              <input id="privacyPinConfirm" type="password" inputmode="numeric" autocomplete="new-password" minlength="6" maxlength="6" pattern="[0-9]{6}" placeholder="Repeat 6-digit PIN" required>
             </label>
             <div class="button-row">
               <button class="primary" type="submit">Set encrypted PIN</button>
@@ -314,6 +317,14 @@
           <div class="switch-row">
             <div><strong>Export backup</strong><br><span>Download your local FlowWell data as JSON.</span></div>
             <button class="secondary" type="button" id="exportData">Export</button>
+          </div>
+          <div class="form backup-form">
+            <label>Encrypted backup password
+              <input id="backupPassword" type="password" autocomplete="new-password" minlength="8" placeholder="At least 8 characters">
+            </label>
+            <div class="button-row">
+              <button class="secondary" type="button" id="exportEncryptedData">Export encrypted</button>
+            </div>
           </div>
           <div class="switch-row">
             <div><strong>Import backup</strong><br><span>Restore a JSON backup from this device.</span></div>
@@ -357,7 +368,7 @@
         FlowWell
       </span>
       <span class="footer-divider" aria-hidden="true">·</span>
-      <span class="footer-credit">Developed by <strong>Makda Yemane Araya and Edirisa</strong></span>
+      <span class="footer-credit">Developed by <strong> Edris</strong></span>
       <span class="footer-divider" aria-hidden="true">·</span>
       <span class="footer-year">© 2026</span>
     </div>
