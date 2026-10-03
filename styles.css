@@ -111,6 +111,15 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   outline-offset: 3px;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 ::selection {
   background: rgba(233, 196, 106, 0.45);
   color: var(--forest);

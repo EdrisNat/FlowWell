@@ -85,6 +85,7 @@
       let failedUnlockAttempts = 0;
       let unlockBlockedUntil = 0;
       let inactivityTimer = 0;
+      let modalReturnFocus = null;
 
       const $ = (selector, root = document) => root.querySelector(selector);
       const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -150,6 +151,8 @@
           document.documentElement.dataset.contrast = state.settings.highContrast ? "high" : "normal";
           $("#themeToggle").setAttribute("aria-label", state.settings.theme === "dark" ? "Switch to light theme" : "Switch to dark theme");
           $("#themeToggle").setAttribute("title", state.settings.theme === "dark" ? "Light theme" : "Dark theme");
+          $("#contrastToggle").setAttribute("aria-pressed", String(state.settings.highContrast));
+          $("#contrastToggle").setAttribute("aria-label", state.settings.highContrast ? "Turn off high contrast mode" : "Turn on high contrast mode");
           $("#fertileToggle").setAttribute("aria-pressed", String(state.settings.showFertile));
           $("#lockScreen").classList.toggle("active", privacy.locked);
         },
@@ -401,7 +404,23 @@
        */
       const Events = {
         init() {
-          $$(".tab").forEach((button) => button.addEventListener("click", () => switchTab(button.dataset.tab)));
+          $$(".tab").forEach((button, index, buttons) => {
+            const tabId = `tab-${button.dataset.tab}`;
+            const panelId = `view-${button.dataset.tab}`;
+            button.id = tabId;
+            button.setAttribute("role", "tab");
+            button.setAttribute("aria-controls", panelId);
+            button.tabIndex = button.getAttribute("aria-selected") === "true" ? 0 : -1;
+            button.addEventListener("click", () => switchTab(button.dataset.tab));
+            button.addEventListener("keydown", (event) => onTabKeydown(event, index, buttons));
+            const panel = document.getElementById(panelId);
+            if (panel) {
+              panel.setAttribute("role", "tabpanel");
+              panel.tabIndex = 0;
+              panel.setAttribute("aria-labelledby", tabId);
+              panel.hidden = button.getAttribute("aria-selected") !== "true";
+            }
+          });
           $("#themeToggle").addEventListener("click", () => updateSetting("theme", state.settings.theme === "dark" ? "light" : "dark"));
           $("#contrastToggle").addEventListener("click", () => updateSetting("highContrast", !state.settings.highContrast));
           $("#unlockForm").addEventListener("submit", unlockWithPin);
@@ -443,12 +462,35 @@
           if (removeSelectedBtn) removeSelectedBtn.addEventListener("click", removeMultiSelected);
           $("#letterHistory").addEventListener("click", onLetterHistoryAction);
           $("#confirmNo").addEventListener("click", () => $("#confirmModal").close());
+          $("#confirmModal").addEventListener("close", restoreModalFocus);
         }
       };
 
       function switchTab(tab) {
-        $$(".tab").forEach((button) => button.setAttribute("aria-selected", String(button.dataset.tab === tab)));
-        $$(".view").forEach((view) => view.classList.toggle("active", view.id === `view-${tab}`));
+        $$(".tab").forEach((button) => {
+          const selected = button.dataset.tab === tab;
+          button.setAttribute("aria-selected", String(selected));
+          button.tabIndex = selected ? 0 : -1;
+        });
+        $$(".view").forEach((view) => {
+          const active = view.id === `view-${tab}`;
+          view.classList.toggle("active", active);
+          view.hidden = !active;
+        });
+      }
+
+      function onTabKeydown(event, index, buttons) {
+        const lastIndex = buttons.length - 1;
+        let nextIndex = index;
+        if (event.key === "ArrowRight" || event.key === "ArrowDown") nextIndex = index === lastIndex ? 0 : index + 1;
+        if (event.key === "ArrowLeft" || event.key === "ArrowUp") nextIndex = index === 0 ? lastIndex : index - 1;
+        if (event.key === "Home") nextIndex = 0;
+        if (event.key === "End") nextIndex = lastIndex;
+        if (nextIndex === index) return;
+        event.preventDefault();
+        const nextTab = buttons[nextIndex];
+        switchTab(nextTab.dataset.tab);
+        nextTab.focus();
       }
 
       function onCalendarClick(event) {
@@ -865,13 +907,22 @@
 
       function confirmAction(message, callback) {
         const modal = $("#confirmModal");
+        modalReturnFocus = document.activeElement;
         $("#modalText").textContent = message;
         $("#confirmYes").onclick = () => {
           modal.close();
           callback();
         };
-        if (typeof modal.showModal === "function") modal.showModal();
+        if (typeof modal.showModal === "function") {
+          modal.showModal();
+          $("#confirmYes").focus();
+        }
         else if (confirm(message)) callback();
+      }
+
+      function restoreModalFocus() {
+        if (modalReturnFocus && document.contains(modalReturnFocus)) modalReturnFocus.focus();
+        modalReturnFocus = null;
       }
 
       function toast(message) {
