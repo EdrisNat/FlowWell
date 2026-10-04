@@ -17,6 +17,7 @@ The project is built as a static Progressive Web App (PWA) using HTML, CSS, and 
 - Optional local PIN lock that encrypts saved records in the browser.
 - Light, dark, and high-contrast display modes.
 - Offline app-shell caching through a service worker.
+- Online/offline status visibility and service-worker update detection.
 
 ## Project Structure
 
@@ -122,7 +123,7 @@ Most changes can be made without tooling. After editing, test manually in a brow
 - PIN enable, lock, unlock, remove, and forgot-PIN flows
 - Export and import backup flows
 
-When changing cached assets, update `CACHE_NAME` in `sw.js` so existing installations receive the new app shell.
+When changing cached assets, update `CACHE_NAME` in `sw.js` so existing installations receive the new app shell. Navigation uses the network when available and falls back to the cached app shell offline; static same-origin assets use the cache first.
 
 ## Known Limitations
 

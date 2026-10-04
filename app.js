@@ -1279,14 +1279,36 @@
         ["pointerdown", "keydown", "touchstart"].forEach((eventName) => {
           window.addEventListener(eventName, registerActivity, { passive: true });
         });
+        window.addEventListener("online", updateConnectionStatus);
+        window.addEventListener("offline", updateConnectionStatus);
+        updateConnectionStatus();
         registerServiceWorker();
         setTimeout(() => $("#skeleton").classList.add("hidden"), 420);
       });
 
       function registerServiceWorker() {
         if (!("serviceWorker" in navigator)) return;
-        navigator.serviceWorker.register("./sw.js").catch(() => {
+        navigator.serviceWorker.register("./sw.js").then((registration) => {
+          registration.addEventListener("updatefound", () => {
+            const worker = registration.installing;
+            if (!worker) return;
+            worker.addEventListener("statechange", () => {
+              if (worker.state === "installed" && navigator.serviceWorker.controller) {
+                toast("A new FlowWell version is ready. Reload to update.");
+              }
+            });
+          });
+        }).catch(() => {
           toast("Offline install is unavailable in this browser context");
         });
+      }
+
+      function updateConnectionStatus() {
+        const status = $("#connectionStatus");
+        if (!status) return;
+        const online = navigator.onLine;
+        status.textContent = online ? "Online" : "Offline mode";
+        status.dataset.online = String(online);
+        status.setAttribute("aria-label", online ? "Online connection" : "Offline mode; records remain on this device");
       }
     })();

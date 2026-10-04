@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#1A4D2E">
   <meta name="description" content="FlowWell is a private menstrual health and dignity tracker for university students in Uganda.">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="manifest" href="manifest.webmanifest">
   <title>FlowWell</title>
   <link rel="stylesheet" href="styles.css">
@@ -56,6 +58,7 @@
         </div>
       </div>
       <div class="top-actions">
+        <span class="connection-status" id="connectionStatus" role="status" aria-live="polite">Online</span>
         <button class="icon-button theme-button" type="button" id="themeToggle" aria-label="Toggle dark theme" title="Theme">
           <svg class="theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v3M12 19v3M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M2 12h3M19 12h3M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12"></path></svg>
           <svg class="theme-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.7A8 8 0 0 1 9.3 4a7 7 0 1 0 10.7 10.7Z"></path></svg>

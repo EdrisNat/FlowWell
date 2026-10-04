@@ -217,6 +217,26 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 
 .top-actions { display: flex; align-items: center; gap: 0.45rem; }
 
+.connection-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(82, 183, 136, 0.13);
+  color: var(--emerald);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.connection-status[data-online="false"] {
+  background: rgba(233, 196, 106, 0.18);
+  color: #8A5A00;
+}
+
+[data-theme="dark"] .connection-status[data-online="false"] { color: var(--gold); }
+
 /* ── BUTTONS ── */
 .icon-button, .chip, .primary, .secondary, .danger, .ghost {
   border-radius: 999px;
