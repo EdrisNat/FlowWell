@@ -28,7 +28,9 @@ FlowWell/
 |-- app.js                  # State management, rendering, persistence, encryption, and events
 |-- sw.js                   # Service worker for offline app-shell caching
 |-- manifest.webmanifest    # PWA metadata and install configuration
-`-- icon.svg                # App icon
+|-- icon.svg                # App icon
+|-- package.json            # Dependency-free test command
+`-- tests/app-smoke.test.js # Static app-shell and integration smoke tests
 ```
 
 ## Technology
@@ -122,6 +124,14 @@ Most changes can be made without tooling. After editing, test manually in a brow
 - Service worker/offline behavior
 - PIN enable, lock, unlock, remove, and forgot-PIN flows
 - Export and import backup flows
+
+Run the automated smoke checks with:
+
+```powershell
+npm test
+```
+
+The tests require no installed packages. They verify local asset references, unique HTML ids, manifest and service-worker assets, and key privacy/offline wiring. Browser interaction, encryption, and offline installation still require manual browser testing.
 
 When changing cached assets, update `CACHE_NAME` in `sw.js` so existing installations receive the new app shell. Navigation uses the network when available and falls back to the cached app shell offline; static same-origin assets use the cache first.
 

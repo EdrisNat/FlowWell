@@ -1,0 +1,7 @@
+{
+  "name": "flowwell",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}
